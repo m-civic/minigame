@@ -41,13 +41,14 @@ export async function authenticateOptional(
 
     // 1. Preveri lokalno podpisani JWT žeton
     const localVerified = verifyLocalJwt(token);
-    if (localVerified) {
+    if (localVerified && process.env.NODE_ENV !== 'production') {
       const memUser = store.users.get(localVerified.sub);
+      if (!memUser) return next();
       req.user = {
-        id: localVerified.sub,
-        email: memUser?.email ?? localVerified.email,
-        username: memUser?.username ?? localVerified.username,
-        role: memUser?.role ?? localVerified.role
+        id: memUser.id,
+        email: memUser.email,
+        username: memUser.username,
+        role: memUser.role
       };
       return next();
     }
@@ -69,6 +70,7 @@ export async function authenticateOptional(
             return next();
           }
         }
+        if (process.env.NODE_ENV === 'production') return next();
         const fallbackUsername =
           (supaUser.user_metadata?.username as string) ||
           supaUser.email?.split('@')[0] ||

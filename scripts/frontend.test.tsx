@@ -1,7 +1,8 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { apiUrl, apiFetch } from '../src/lib/api';
 import type { Puzzle, Token } from '../src/types/game';
 import { cleanGuess, stemWord } from '../src/utils/stemmer';
 import {
@@ -14,6 +15,30 @@ import {
 import { DocumentToken } from '../src/components/document/DocumentToken';
 
 const puzzle: Puzzle = JSON.parse(readFileSync('public/puzzles/today.json', 'utf8'));
+
+test('API URL uporabi javno runtime konfiguracijo brez podvajanja /api', () => {
+  vi.stubGlobal('window', { __MINIGAME_CONFIG__: { apiBaseUrl: 'https://backend.example.test/api/' } });
+  try {
+    expect(apiUrl('/api/game/today?sessionId=123')).toBe('https://backend.example.test/api/game/today?sessionId=123');
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test('API klic ohrani glavo Authorization in vsebino zahteve', async () => {
+  vi.stubGlobal('window', { __MINIGAME_CONFIG__: { apiBaseUrl: 'https://backend.example.test/api' } });
+  const mocked = vi.fn().mockResolvedValue(new Response('{}'));
+  vi.stubGlobal('fetch', mocked);
+  const init = { method: 'POST', headers: { Authorization: 'Bearer test-token' }, body: '{"word":"physics"}' };
+  try {
+    await apiFetch('/api/game/guess', init);
+    expect(mocked).toHaveBeenCalledWith('https://backend.example.test/api/game/guess', init);
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test('brez runtime konfiguracije uporabi VITE_API_BASE_URL', () => {
+  vi.stubEnv('VITE_API_BASE_URL', 'https://env-backend.example.test/api');
+  try { expect(apiUrl('/api/auth/login')).toBe('https://env-backend.example.test/api/auth/login'); }
+  finally { vi.unstubAllEnvs(); }
+});
 
 test('glavni namig izbere preostalo besedo naslova in po razkritju vseh ni na voljo', () => {
   const multiWordPuzzle: Puzzle = JSON.parse(readFileSync('public/puzzles/puzzle-1.json', 'utf8'));
