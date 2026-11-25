@@ -1,5 +1,9 @@
 # [REDACTED] — Spletna igra z ugibanjem cenzuriranih besedil (MVP)
 
+[![CI/CD](https://github.com/m-civic/minigame/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/m-civic/minigame/actions/workflows/ci-cd.yml?query=branch%3Amain)
+
+**Nameščena aplikacija:** https://minigame-rirs.pages.dev
+
 Spletna deduktivna igra z besedami, kjer igralci postopoma razkrivajo cenzuriran enciklopedični članek (Wikipedia) in z logičnim sklepanjem ugotavljajo naslov oziroma glavno temo članka.
 
 Projekt je v celoti implementiran v skladu s specifikacijami v mapi [`docs/`](docs/) ter arhitekturnimi odločitvami ([`docs/adr/`](docs/adr/)).
@@ -130,6 +134,17 @@ npm run lint
 # Preverjanje tipov (TypeScript) in produkcijska gradnja (Vite)
 npm run build
 ```
+
+---
+
+## ⚙️ CI/CD cevovod
+
+Workflow [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) se sproži ob vsakem pull requestu in pushu na vejo `main`:
+
+1. **lint** — preveri slog in kakovost kode frontenda in backenda z Oxlint; ob napaki job pade.
+2. **build** — z npm cache zgradi frontend in backend ter backend Docker sliko; rezultate shrani kot artefakte.
+3. **test** — zažene teste frontenda in backenda; poročilo o pokritosti kode shrani kot artefakt.
+4. **deploy** — samo ob pushu na `main` in po uspešnih jobih lint, build in test: v okolju `production` namesti artefakte iz joba build (frontend na Cloudflare Pages, backend na Render prek GHCR).
 
 ---
 
