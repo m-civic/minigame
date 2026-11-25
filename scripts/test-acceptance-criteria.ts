@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 
 import type { Server } from 'http';
+import { pathToFileURL } from 'node:url';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -8,7 +9,7 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-async function runAcceptanceTests() {
+export async function runAcceptanceTests() {
   const { createApp } = await import('../backend/src/index.js');
 
   console.log('==============================================================');
@@ -16,8 +17,9 @@ async function runAcceptanceTests() {
   console.log('==============================================================\n');
 
   const app = createApp();
-  const server: Server = await new Promise((resolve) => {
-    const s = app.listen(0, () => resolve(s));
+  const server: Server = await new Promise((resolve, reject) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    s.once('error', reject);
   });
 
   const address = server.address();
@@ -371,13 +373,16 @@ async function runAcceptanceTests() {
     );
     console.log('   ✅ RBAC, SSRF zaščita, uredniški koledar in zaščita pred samo-odvzemom ADMIN vloge potrjeni.');
 
-    console.log('\n🎉 VSI POGOJI SPREJEMLJIVOSTI (US-01 do US-15) IN VARNOSTNI PREGLEDI SO USPEŠNO PRESTANI!');
+    console.log('\n✅ Obstoječi API scenariji so uspešno prestani.');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
 
-runAcceptanceTests().catch((err) => {
-  console.error('❌ Preverjanje pogojev sprejemljivosti ni uspelo:', err);
-  process.exit(1);
-});
+// Ohranjen je tudi neposreden zagon obstoječe skripte.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runAcceptanceTests().catch((err) => {
+    console.error('❌ Preverjanje pogojev sprejemljivosti ni uspelo:', err);
+    process.exitCode = 1;
+  });
+}
