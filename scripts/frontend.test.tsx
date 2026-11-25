@@ -15,6 +15,11 @@ import { DocumentToken } from '../src/components/document/DocumentToken';
 
 const puzzle: Puzzle = JSON.parse(readFileSync('public/puzzles/today.json', 'utf8'));
 
+// Nameren neuspeh za demonstracijo obveznega CI preverjanja pri zaščiti veje main.
+test('RIRS: namerno neuspešen test za demonstracijo zaščite veje main', () => {
+  expect(true).toBe(false);
+});
+
 describe('Frontend: normalizacija in obstoječi scenariji logike igre', () => {
   // Primeri iz scripts/test-game-logic.mjs; zdaj se preverijo vsi pričakovani koreni.
   test.each([
