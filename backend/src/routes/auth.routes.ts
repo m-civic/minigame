@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
 import { prisma } from '../lib/prisma';
 import { store, hashPassword, signLocalJwt } from '../lib/store';
@@ -10,11 +10,21 @@ export const authRouter = Router();
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Brez konfiguriranega ponudnika ni produkcijskega obhoda na lokalne račune.
+function requireProductionAuth(_req: Request, res: Response, next: NextFunction) {
+  if (process.env.NODE_ENV === 'production' &&
+      (!isSupabaseConfigured() || !supabaseAdmin || !store.isUsingDatabase() || !prisma)) {
+    res.status(503).json({ error: 'Prijava in registracija v tej namestitvi nista konfigurirani.' });
+    return;
+  }
+  next();
+}
+
 /**
  * POST /api/auth/register
  * US-06: Obrazec za registracijo zahteva veljaven e-poštni naslov, unikatno uporabniško ime in geslo z najmanj 6 znaki.
  */
-authRouter.post('/register', authRateLimiter, async (req: Request, res: Response) => {
+authRouter.post('/register', authRateLimiter, requireProductionAuth, async (req: Request, res: Response) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const username = String(req.body?.username || '').trim();
@@ -119,7 +129,7 @@ authRouter.post('/register', authRateLimiter, async (req: Request, res: Response
       username,
       email,
       role: 'PLAYER' as const,
-      passwordHash: hashPassword(password),
+      passwordHash: process.env.NODE_ENV === 'production' ? undefined : hashPassword(password),
       createdAt: now,
       updatedAt: now
     };
@@ -136,12 +146,17 @@ authRouter.post('/register', authRateLimiter, async (req: Request, res: Response
       lastPlayedDate: null
     });
 
-    const token = signLocalJwt({
-      sub: userId,
-      email,
-      username,
-      role: 'PLAYER'
-    });
+    let token: string;
+    if (process.env.NODE_ENV === 'production') {
+      const { data, error } = await supabaseAdmin!.auth.signInWithPassword({ email, password });
+      if (error || !data.session || data.user?.id !== userId) {
+        res.status(401).json({ error: 'Registracija ni ustvarila veljavne prijavne seje.' });
+        return;
+      }
+      token = data.session.access_token;
+    } else {
+      token = signLocalJwt({ sub: userId, email, username, role: 'PLAYER' });
+    }
 
     res.status(201).json({
       token,
@@ -162,7 +177,7 @@ authRouter.post('/register', authRateLimiter, async (req: Request, res: Response
  * POST /api/auth/login
  * US-06: Prijava z elektronskim naslovom (ali uporabniškim imenom) in geslom, ki nastavi varno JWT sejo.
  */
-authRouter.post('/login', authRateLimiter, async (req: Request, res: Response) => {
+authRouter.post('/login', authRateLimiter, requireProductionAuth, async (req: Request, res: Response) => {
   try {
     const identifier = String(req.body?.email || req.body?.identifier || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
@@ -200,15 +215,21 @@ authRouter.post('/login', authRateLimiter, async (req: Request, res: Response) =
       return;
     }
 
-    if (isSupabaseConfigured() && supabaseAdmin && !matchedUser.passwordHash) {
-      const { error } = await supabaseAdmin.auth.signInWithPassword({
-        email: matchedUser.email,
-        password
-      });
-      if (error) {
+    let verifiedToken: string | undefined;
+    if (process.env.NODE_ENV === 'production' || !matchedUser.passwordHash) {
+      if (!isSupabaseConfigured() || !supabaseAdmin) {
         res.status(401).json({ error: 'Napačen elektronski naslov ali geslo.' });
         return;
       }
+      const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+        email: matchedUser.email,
+        password
+      });
+      if (error || !data.session || data.user?.id !== matchedUser.id) {
+        res.status(401).json({ error: 'Napačen elektronski naslov ali geslo.' });
+        return;
+      }
+      verifiedToken = data.session.access_token;
     } else if (matchedUser.passwordHash) {
       const incomingHash = hashPassword(password);
       if (incomingHash !== matchedUser.passwordHash) {
@@ -217,7 +238,7 @@ authRouter.post('/login', authRateLimiter, async (req: Request, res: Response) =
       }
     }
 
-    const token = signLocalJwt({
+    const token = verifiedToken ?? signLocalJwt({
       sub: matchedUser.id,
       email: matchedUser.email,
       username: matchedUser.username,

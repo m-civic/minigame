@@ -13,6 +13,16 @@ import {
 
 export const gameRouter = Router();
 
+gameRouter.use(authenticateOptional, (req, res, next) => {
+  const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : req.query.sessionId;
+  const session = typeof sessionId === 'string' ? store.sessions.get(sessionId) : undefined;
+  if (session?.userId && session.userId !== req.user?.id) {
+    res.status(403).json({ error: 'Nimate dostopa do te igralne seje.' });
+    return;
+  }
+  next();
+});
+
 /**
  * Poišče ali ustvari aktivno igralno sejo za določeno uganko.
  */
@@ -24,6 +34,9 @@ export function getOrCreateSession(
   if (sessionIdParam) {
     const byId = store.sessions.get(sessionIdParam);
     if (byId && byId.puzzleId === puzzle.id) {
+      if (byId.userId && byId.userId !== userId) {
+        throw new Error('Nimate dostopa do te igralne seje.');
+      }
       if (userId && !byId.userId) {
         byId.userId = userId;
       }
@@ -100,7 +113,7 @@ export function formatSessionResponse(session: StoredGameSession, puzzle: Stored
  * GET /api/game/today
  * Vrne današnjo objavljeno dnevno uganko z maskiranimi žetoni (ADR 0003).
  */
-gameRouter.get('/today', authenticateOptional, (req: Request, res: Response) => {
+gameRouter.get('/today', (req: Request, res: Response) => {
   const published =
     Array.from(store.puzzles.values()).find(p => p.status === 'PUBLISHED') ||
     Array.from(store.puzzles.values())[0];
@@ -125,7 +138,7 @@ gameRouter.get('/today', authenticateOptional, (req: Request, res: Response) => 
  * GET /api/game/puzzle/:number
  * Vrne uganko po zaporedni številki (#1, #2...) z maskiranimi žetoni (ADR 0003).
  */
-gameRouter.get('/puzzle/:number', authenticateOptional, (req: Request, res: Response) => {
+gameRouter.get('/puzzle/:number', (req: Request, res: Response) => {
   const num = Number(req.params.number);
   if (!Number.isInteger(num) || num <= 0) {
     res.status(400).json({ error: 'Neveljavna številka uganke.' });
@@ -153,7 +166,7 @@ gameRouter.get('/puzzle/:number', authenticateOptional, (req: Request, res: Resp
  * POST /api/game/guess
  * US-01 & US-07: Strežniško preverjanje ugibanja s Porter Stemmerjem, preprečevanje dvojnega vnosa in zapis v `guess_logs`.
  */
-gameRouter.post('/guess', authenticateOptional, async (req: Request, res: Response) => {
+gameRouter.post('/guess', async (req: Request, res: Response) => {
   try {
     const rawWord = String(req.body?.word || '');
     const puzzleId = String(req.body?.puzzleId || '');
@@ -198,7 +211,7 @@ gameRouter.post('/guess', authenticateOptional, async (req: Request, res: Respon
  * US-03: Osnovni namig (do 3 uporabe na igro).
  * US-04: Glavni namig v naslovu (največ 1 uporaba na igro, če ima naslov >= 2 besedi).
  */
-gameRouter.post('/hint', authenticateOptional, async (req: Request, res: Response) => {
+gameRouter.post('/hint', async (req: Request, res: Response) => {
   try {
     const hintType = req.body?.type === 'title' ? 'title' : 'basic';
     const puzzleId = String(req.body?.puzzleId || '');

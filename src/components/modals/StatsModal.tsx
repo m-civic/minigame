@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import React, { useEffect, useState } from 'react';
 import { BarChart3, Award, Lock, CheckCircle2 } from 'lucide-react';
 import type { PlayerStats, AchievementItem } from '@/types/game';
@@ -69,7 +70,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, stats }
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    fetch('/api/stats/achievements', { headers })
+    apiFetch('/api/stats/achievements', { headers })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.achievements) {

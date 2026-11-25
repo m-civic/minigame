@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -45,9 +45,21 @@ jobs:
       - run: npm ci
       - name: Build frontend and backend with runtime dependencies
         run: npm run build
-      # tar ohrani tudi skrite Prisma datoteke in dovoljenja odvisnosti.
-      - name: Package backend for Linux x64 and Node 24
-        run: tar -czf dist/backend-linux-x64-node24.tar.gz -C dist/backend .
+      - name: Build backend image from compiled artifact
+        run: docker build --platform linux/amd64 -t minigame-backend:${{ github.sha }} .
+      - name: Verify production image locally
+        run: |
+          docker run -d --name minigame-ci -p 127.0.0.1:3001:10000 -e PORT=10000 minigame-backend:${{ github.sha }}
+          trap 'docker rm -f minigame-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3001/api/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3001/api/game/today | jq -e '.puzzle.titleTokens | length > 0'
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3001/api/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@redacted.si","password":"geslo123"}')
+          test "$status" = 503
+      - name: Save already built backend image
+        run: docker save minigame-backend:${{ github.sha }} | gzip > dist/backend-image.tar.gz
       - uses: actions/upload-artifact@v7
         with:
           name: frontend-${{ github.sha }}
@@ -57,10 +69,67 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: backend-linux-x64-node24-${{ github.sha }}
-          path: dist/backend-linux-x64-node24.tar.gz
+          path: dist/backend-image.tar.gz
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+  deploy:
+    needs: [lint, build, test]
+    if: >-
+      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
+      RENDER_SERVICE_NAME: ${{ vars.RENDER_SERVICE_NAME }}
+      RENDER_REGION: ${{ vars.RENDER_REGION }}
+      GHCR_IMAGE: ${{ vars.GHCR_IMAGE }}
+      GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+      GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate production settings before publishing
+        run: node scripts/deploy.mjs --check
+      - uses: actions/download-artifact@v7
+        with:
+          name: frontend-${{ github.sha }}
+          path: deploy/frontend
+      - uses: actions/download-artifact@v7
+        with:
+          name: backend-linux-x64-node24-${{ github.sha }}
+          path: deploy/backend
+      - name: Load and publish already built image
+        env:
+          GHCR_PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker load -i deploy/backend/backend-image.tar.gz
+          printf '%s' "$GHCR_PUSH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          docker tag minigame-backend:${{ github.sha }} "$GHCR_IMAGE:${{ github.sha }}"
+          docker push "$GHCR_IMAGE:${{ github.sha }}"
+          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$GHCR_IMAGE:${{ github.sha }}")
+          echo "DEPLOY_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Deploy prebuilt backend and frontend
+        run: node scripts/deploy.mjs
 
   test:
     runs-on: ubuntu-24.04

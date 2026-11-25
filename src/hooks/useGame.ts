@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { useState, useCallback, useEffect } from 'react';
 import type { Puzzle, GuessItem, PlayerStats, Token, AchievementItem } from '@/types/game';
 import { stemWord, cleanGuess } from '@/utils/stemmer';
@@ -81,7 +82,7 @@ export function useGame({ onGameWon, authToken = null }: UseGameProps = {}) {
   const reloadPlayerStats = useCallback(async () => {
     if (authToken) {
       try {
-        const res = await fetch('/api/stats/me', {
+        const res = await apiFetch('/api/stats/me', {
           headers: { Authorization: `Bearer ${authToken}` }
         });
         if (res.ok) {
@@ -148,7 +149,7 @@ export function useGame({ onGameWon, authToken = null }: UseGameProps = {}) {
           headers.Authorization = `Bearer ${authToken}`;
         }
 
-        const apiRes = await fetch(apiEndpoint, { headers }).catch(() => null);
+        const apiRes = await apiFetch(apiEndpoint, { headers }).catch(() => null);
         if (apiRes && apiRes.ok) {
           const payload = await apiRes.json();
           const srvPuzzle: Puzzle = payload.puzzle;
@@ -246,7 +247,7 @@ export function useGame({ onGameWon, authToken = null }: UseGameProps = {}) {
             headers.Authorization = `Bearer ${authToken}`;
           }
 
-          const res = await fetch('/api/game/guess', {
+          const res = await apiFetch('/api/game/guess', {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -428,7 +429,7 @@ export function useGame({ onGameWon, authToken = null }: UseGameProps = {}) {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/game/hint', {
+        const res = await apiFetch('/api/game/hint', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -491,7 +492,7 @@ export function useGame({ onGameWon, authToken = null }: UseGameProps = {}) {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-        const res = await fetch('/api/game/hint', {
+        const res = await apiFetch('/api/game/hint', {
           method: 'POST',
           headers,
           body: JSON.stringify({
