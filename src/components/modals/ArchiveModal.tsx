@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect } from 'react';
 import {
   FolderArchive,
@@ -44,7 +45,7 @@ export const ArchiveModal: React.FC<ArchiveModalProps> = ({
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    fetch('/api/archive', { headers })
+    apiFetch('/api/archive', { headers })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.archive) {

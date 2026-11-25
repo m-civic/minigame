@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { UserProfile } from '@/types/game';
 import { supabaseClient } from '@/lib/supabase';
@@ -34,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!token) return;
-    fetch('/api/auth/me', {
+    apiFetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(async res => {
@@ -59,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (emailOrUsername: string, password: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: emailOrUsername, password })
@@ -92,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = useCallback(async (username: string, email: string, password: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })

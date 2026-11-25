@@ -127,11 +127,8 @@ export interface StoredUserAchievement {
   unlockedAt: Date;
 }
 
-// Ephemeral per-process HMAC secret for local fallback JWT signing (never hardcoded secret in repo)
-const LOCAL_JWT_SECRET =
-  process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY.includes('vas-')
-    ? process.env.SUPABASE_SERVICE_ROLE_KEY
-    : crypto.randomBytes(32).toString('hex');
+// Lokalni demo JWT je ločen od Supabase in se v produkciji ne sprejema.
+const LOCAL_JWT_SECRET = crypto.randomBytes(32).toString('hex');
 
 export function hashPassword(password: string): string {
   const salt = 'redacted-pbkdf2-v1';
@@ -289,7 +286,7 @@ class HybridDataStore {
       }
     ];
 
-    for (const u of demoUsers) {
+    for (const u of process.env.NODE_ENV === 'production' ? [] : demoUsers) {
       this.users.set(u.id, {
         id: u.id,
         username: u.username,
@@ -397,7 +394,7 @@ class HybridDataStore {
       }
     ];
 
-    for (const s of sampleLeaderboardSessions) {
+    for (const s of process.env.NODE_ENV === 'production' ? [] : sampleLeaderboardSessions) {
       this.sessions.set(s.id, {
         id: s.id,
         userId: s.userId,
