@@ -15,6 +15,18 @@ import { DocumentToken } from '../src/components/document/DocumentToken';
 
 const puzzle: Puzzle = JSON.parse(readFileSync('public/puzzles/today.json', 'utf8'));
 
+test('glavni namig izbere preostalo besedo naslova in po razkritju vseh ni na voljo', () => {
+  const multiWordPuzzle: Puzzle = JSON.parse(readFileSync('public/puzzles/puzzle-1.json', 'utf8'));
+  const titleWords = multiWordPuzzle.titleTokens.filter(token => token.type === 'word' && !token.isStopWord);
+  expect(titleWords).toHaveLength(2);
+
+  const revealedIds = new Set([titleWords[0].id]);
+  expect(findTitleHintCandidate(multiWordPuzzle, revealedIds)).toBe(titleWords[1].canonical);
+
+  revealedIds.add(titleWords[1].id);
+  expect(findTitleHintCandidate(multiWordPuzzle, revealedIds)).toBeNull();
+});
+
 describe('Frontend: normalizacija in obstoječi scenariji logike igre', () => {
   // Primeri iz scripts/test-game-logic.mjs; zdaj se preverijo vsi pričakovani koreni.
   test.each([
