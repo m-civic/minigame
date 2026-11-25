@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
@@ -80,7 +81,7 @@ export const EditorAdminModal: React.FC<EditorAdminModalProps> = ({
     if (!isOpen || !user) return;
     const headers = getAuthHeaders();
 
-    fetch('/api/admin/puzzles', { headers })
+    apiFetch('/api/admin/puzzles', { headers })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.puzzles) setPuzzlesList(data.puzzles);
@@ -88,7 +89,7 @@ export const EditorAdminModal: React.FC<EditorAdminModalProps> = ({
       .catch(() => {});
 
     if (user.role === 'ADMIN') {
-      fetch('/api/admin/users', { headers })
+      apiFetch('/api/admin/users', { headers })
         .then(res => (res.ok ? res.json() : null))
         .then(data => {
           if (data?.users) setUsersList(data.users);
@@ -108,7 +109,7 @@ export const EditorAdminModal: React.FC<EditorAdminModalProps> = ({
     soundFX.playKeypress();
 
     try {
-      const res = await fetch('/api/admin/puzzles/import', {
+      const res = await apiFetch('/api/admin/puzzles/import', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ wikipediaUrl: wikiUrl })
@@ -150,7 +151,7 @@ export const EditorAdminModal: React.FC<EditorAdminModalProps> = ({
     soundFX.playKeypress();
 
     try {
-      const res = await fetch('/api/admin/puzzles', {
+      const res = await apiFetch('/api/admin/puzzles', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -188,7 +189,7 @@ export const EditorAdminModal: React.FC<EditorAdminModalProps> = ({
     soundFX.playKeypress();
 
     try {
-      const res = await fetch(`/api/admin/users/${targetUserId}/role`, {
+      const res = await apiFetch(`/api/admin/users/${targetUserId}/role`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
         body: JSON.stringify({ role: newRole })

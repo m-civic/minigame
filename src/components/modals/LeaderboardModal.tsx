@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect } from 'react';
 import { Trophy, Flame, Calendar } from 'lucide-react';
 import type { LeaderboardEntry, UserProfile } from '@/types/game';
@@ -32,7 +33,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    fetch('/api/leaderboard', { headers })
+    apiFetch('/api/leaderboard', { headers })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data) {
